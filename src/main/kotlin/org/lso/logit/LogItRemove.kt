@@ -6,6 +6,8 @@ import com.intellij.find.replaceInProject.ReplaceInProjectManager
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.project.Project
 import org.lso.logit.settings.LogItSettings
 
 
@@ -19,6 +21,19 @@ class LogItRemove : AnAction("Remove LogIt's Logs") {
     val editor = e.getData(CommonDataKeys.EDITOR)
     editor ?: throw IllegalStateException("Editor cannot be null")
 
+    when (dlg.scope) {
+      Scope.CURRENT_FILE -> removeFromCurrentFile(project, editor)
+      Scope.PROJECT -> {
+        ReplaceInProjectManager.getInstance(project).replaceInPath(createFindModel())
+      }
+    }
+  }
+
+  internal fun removeFromCurrentFile(project: Project, editor: Editor) {
+    FindUtil.replace(project, editor, 0, createFindModel())
+  }
+
+  private fun createFindModel(): FindModel {
     val patternToReplace = ".*" + LogItSettings.instance.pattern.run {
       replace("\\", "\\\\")
         .replace("(", "\\(")
@@ -40,20 +55,12 @@ class LogItRemove : AnAction("Remove LogIt's Logs") {
         .replace("$", "\\$")
     } + "\n"
 
-    val findModel = FindModel().apply {
+    return FindModel().apply {
       stringToFind = patternToReplace
       stringToReplace = ""
       isPromptOnReplace = false
       isRegularExpressions = true
       isGlobal = true
-      isPromptOnReplace = false
-    }
-
-    when (dlg.scope) {
-      Scope.CURRENT_FILE -> FindUtil.replace(project, editor, 0, findModel)
-      Scope.PROJECT -> {
-        ReplaceInProjectManager.getInstance(project).replaceInPath(findModel)
-      }
     }
   }
 }

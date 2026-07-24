@@ -1,7 +1,7 @@
 package org.lso.logit
 
-import com.intellij.lang.Language
 import com.intellij.lang.javascript.psi.JSIfStatement
+import com.intellij.lang.javascript.psi.JSReferenceExpression
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.CaretState
@@ -10,7 +10,7 @@ import com.intellij.openapi.editor.LogicalPosition
 import com.intellij.openapi.editor.actionSystem.EditorActionManager
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiFileFactory
+import com.intellij.psi.PsiDocumentManager
 import org.lso.logit.settings.LogItSettings
 
 
@@ -105,12 +105,10 @@ class LogItAdd : AnAction("Insert log") {
   private fun moveCursorToInsertionPoint(
     editor: Editor
   ): String? {
-    // parse the file as a simple JavaScript file
-    val javaScript = Language.findLanguageByID("JavaScript") ?: return null
-    val psiFile =
-      PsiFileFactory.getInstance(editor.project).createFileFromText(
-        "dummy.js", javaScript, editor.document.text
-      )
+    val project = editor.project ?: return null
+    val psiDocumentManager = PsiDocumentManager.getInstance(project)
+    psiDocumentManager.commitDocument(editor.document)
+    val psiFile = psiDocumentManager.getPsiFile(editor.document) ?: return null
 
     val valueToLog: String
     val element: PsiElement?
@@ -122,25 +120,33 @@ class LogItAdd : AnAction("Insert log") {
       offset = editor.selectionModel.selectionStart
 
       element = psiFile.findElementAt(offset)
+        ?: psiFile.findElementAt((offset - 1).coerceAtLeast(0))
 
       valueToLog = value ?: "<CR>"
     } else {
       offset = editor.caretModel.currentCaret.offset
 
       val elementAtCursor = psiFile.findElementAt(offset)
+        ?: psiFile.findElementAt((offset - 1).coerceAtLeast(0))
+        ?: return null
 
-      if (elementAtCursor?.text?.replace(" ", "")?.endsWith("\n\n") == true) return ""
+      if (elementAtCursor.text.replace(" ", "").endsWith("\n\n")) return ""
 
-      element = findElementToLogForSelection(elementAtCursor!!)
+      element = findElementToLogForSelection(elementAtCursor)
 
       valueToLog = element?.text?.replace(" ", "") ?: "<CR>"
     }
 
-    if (valueToLog.startsWith("\n") && element?.hasParentOfType("JS:OBJECT_LITERAL", 2) != true) {
+    val elementAtOffset = element
+      ?: psiFile.findElementAt(offset)
+      ?: psiFile.findElementAt((offset - 1).coerceAtLeast(0))
+      ?: return null
+
+    if (valueToLog.startsWith("\n") && !elementAtOffset.hasParentOfType("JS:OBJECT_LITERAL", 2)) {
       return "\n"
     }
 
-    val block = findBlockForElement(element ?: psiFile.findElementAt(offset) ?: return null)
+    val block = findBlockForElement(elementAtOffset)
 
     when {
       block is JSIfStatement -> {
@@ -162,7 +168,9 @@ class LogItAdd : AnAction("Insert log") {
 
     val elementType = element.node.elementType.toString()
     val parentElementType = element.parent.node.elementType.toString()
+    val qualifiedReference = element.parent as? JSReferenceExpression
     when {
+      elementType == "JS:IDENTIFIER" && qualifiedReference?.qualifier != null -> return qualifiedReference
       elementType == "WHITE_SPACE" && element.text.replace(" ", "").startsWith("\n\n") -> return null
       element.prevSibling != null
         && element.prevSibling.node.elementType.toString() == "JS:DOT"
@@ -210,7 +218,7 @@ class LogItAdd : AnAction("Insert log") {
   private fun findElementToLogForBlock(element: PsiElement?): PsiElement? {
     element ?: return null
     val elementType = element.node.elementType.toString()
-    val parentType = element.parent.node.elementType.toString()
+    val parentType = element.parent?.node?.elementType?.toString() ?: "FILE"
 
     when {
       (elementType == "JS:IDENTIFIER" && parentType != "JS:PROPERTY")
@@ -231,31 +239,33 @@ class LogItAdd : AnAction("Insert log") {
   /**
    * find the block containing this element
    */
-  private fun findBlockForElement(element: PsiElement): PsiElement? {
-
-    val elementType = element.node.elementType.toString()
-    val parentElementType = if (element.parent == null) {
-      return null
-    } else element.parent.node.elementType.toString()
+  private fun findBlockForElement(element: PsiElement?): PsiElement? {
+    val current = element ?: return null
+    val elementType = current.node?.elementType?.toString() ?: return null
+    val parent = current.parent ?: return null
+    val parentElementType = parent.node?.elementType?.toString() ?: "FILE"
 
     when {
-      (elementType == "JS:EXPRESSION_STATEMENT" && parentElementType != "FILE") -> return element
-      elementType == "JS:VAR_STATEMENT" -> return element
-      elementType == "JS:IF_STATEMENT" -> return element
+      (elementType == "JS:EXPRESSION_STATEMENT" && parentElementType != "FILE") -> return current
+      elementType == "JS:VAR_STATEMENT" -> return current
+      elementType == "JS:IF_STATEMENT" -> return current
 
-      element.text.trim(' ') == "{" -> return element
-      element.text.trim(' ') == "\n" -> return findBlockForElement(element.prevSibling)
+      current.text.trim(' ') == "{" -> return current
+      current.text.trim(' ') == "\n" -> return findBlockForElement(current.prevSibling ?: parent)
     }
 
-    return findBlockForElement(element.parent)
+    return findBlockForElement(parent)
   }
 
   private fun PsiElement.hasParentOfType(type: String, maxRecursion: Int, recursionLevel: Int = 0): Boolean {
-    return if (this.parent.node.elementType.toString() == type) {
+    val parent = parent ?: return false
+    val parentType = parent.node?.elementType?.toString() ?: return false
+
+    return if (parentType == type) {
       true
     } else {
-      return if (this.parent.node.elementType.toString() != "FILE" && recursionLevel < maxRecursion)
-        this.parent.hasParentOfType(type, maxRecursion, recursionLevel + 1)
+      return if (parentType != "FILE" && recursionLevel < maxRecursion)
+        parent.hasParentOfType(type, maxRecursion, recursionLevel + 1)
       else false
     }
   }

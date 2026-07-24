@@ -25,8 +25,13 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      - name: Test and build plugin
-        run: ./gradlew test buildPlugin
+      - name: Test supported WebStorm versions
+        run: |
+          ./gradlew test
+          ./gradlew test -PplatformVersion=2026.2
+
+      - name: Build plugin
+        run: ./gradlew buildPlugin
 
       - name: Upload plugin ZIP
         uses: actions/upload-artifact@v7
