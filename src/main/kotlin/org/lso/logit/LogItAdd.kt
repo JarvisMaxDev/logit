@@ -1,6 +1,6 @@
 package org.lso.logit
 
-import com.intellij.lang.javascript.JavascriptLanguage
+import com.intellij.lang.Language
 import com.intellij.lang.javascript.psi.JSIfStatement
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.command.WriteCommandAction
@@ -52,7 +52,9 @@ class LogItAdd : AnAction("Insert log") {
         val offset = editor.caretModel.currentCaret.offset
         editor.document.insertString(offset, line2insert)
       }
-      WriteCommandAction.runWriteCommandAction(editor.project, runnable)
+      WriteCommandAction.writeCommandAction(editor.project)
+        .withName("Insert LogIt log")
+        .run<RuntimeException> { runnable() }
 
       positionCaret(editor, insertionPositions, line2insert, variableName.replace("<CR>", "").trim())
     }
@@ -104,9 +106,10 @@ class LogItAdd : AnAction("Insert log") {
     editor: Editor
   ): String? {
     // parse the file as a simple JavaScript file
+    val javaScript = Language.findLanguageByID("JavaScript") ?: return null
     val psiFile =
       PsiFileFactory.getInstance(editor.project).createFileFromText(
-        "dummy.js", JavascriptLanguage.INSTANCE, editor.document.text
+        "dummy.js", javaScript, editor.document.text
       )
 
     val valueToLog: String
@@ -257,4 +260,3 @@ class LogItAdd : AnAction("Insert log") {
     }
   }
 }
-

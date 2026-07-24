@@ -1,22 +1,36 @@
+import org.gradle.api.tasks.bundling.Jar
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.models.ProductRelease
 import org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 plugins {
   // Java support
   id("java")
   // Kotlin support
-  id("org.jetbrains.kotlin.jvm") version "2.0.21"
-  // gradle-intellij-plugin - read more: https://github.com/JetBrains/gradle-intellij-plugin
-  id("org.jetbrains.intellij.platform") version "2.1.0"
+  id("org.jetbrains.kotlin.jvm") version "2.4.10"
+  // IntelliJ Platform Gradle Plugin
+  id("org.jetbrains.intellij.platform") version "2.18.1"
 }
 
-tasks.withType<KotlinCompile> {
+group = "org.lso"
+version = "2026.2.0"
+val platformVersion = providers.gradleProperty("platformVersion").getOrElse("2024.2")
+
+java {
+  toolchain {
+    languageVersion.set(JavaLanguageVersion.of(25))
+  }
+  sourceCompatibility = JavaVersion.VERSION_21
+  targetCompatibility = JavaVersion.VERSION_21
+}
+
+kotlin {
+  jvmToolchain(25)
   compilerOptions {
-    jvmTarget.set(JvmTarget.JVM_19)
+    jvmTarget.set(JvmTarget.JVM_21)
   }
 }
 
@@ -27,16 +41,13 @@ repositories {
 
   intellijPlatform {
     defaultRepositories()
-    snapshots()
   }
 }
 
 dependencies {
   intellijPlatform {
-    webstorm("2024.2.4", useInstaller = false)
+    webstorm(platformVersion)
     bundledPlugin("JavaScript")
-    instrumentationTools()
-    pluginVerifier()
     testFramework(TestFrameworkType.Platform)
   }
   testImplementation("junit:junit:4.13.2")
@@ -47,9 +58,12 @@ dependencies {
 // Read more: https://github.com/JetBrains/gradle-intellij-plugin
 intellijPlatform {
   pluginConfiguration {
-    group = "org.lso"
     name.set("LogIt")
-    version.set("2025.1")
+    version.set(project.version.toString())
+    ideaVersion {
+      sinceBuild.set("242")
+      untilBuild.set(provider { null })
+    }
   }
   pluginVerification {
     failureLevel = VerifyPluginTask.FailureLevel.ALL
@@ -58,13 +72,13 @@ intellijPlatform {
     teamCityOutputFormat = false
     subsystemsToCheck = VerifyPluginTask.Subsystems.ALL
     ides {
-      ide(IntelliJPlatformType.WebStorm, "2024.2")
-      recommended()
+      create(IntelliJPlatformType.WebStorm, "2024.2")
+      create(IntelliJPlatformType.WebStorm, "2026.2")
       select {
         types = listOf(IntelliJPlatformType.WebStorm)
-        channels = listOf(ProductRelease.Channel.RELEASE)
-        sinceBuild = "242"
-        untilBuild = "251.*"
+        channels = listOf(ProductRelease.Channel.RELEASE, ProductRelease.Channel.EAP)
+        sinceBuild = "262"
+        untilBuild = "262.*"
       }
     }
   }
@@ -74,14 +88,10 @@ intellijPlatform {
   }
 
   tasks {
-    withType<JavaCompile> {
-      sourceCompatibility = "19"
-      targetCompatibility = "19"
-    }
-
     patchPluginXml {
       changeNotes.set(
         """<br>
+      v2026.2.0 - compatibility with IntelliJ Platform 2026.2<br>
       v2025.1 - compatibility with 2025.1 version<br>
       v2024.31 - remove deprecated functions<br>
       v2024.3 - compatibility with 2024.3 version<br>
@@ -108,4 +118,19 @@ intellijPlatform {
   }
 }
 
+tasks.named<Jar>("jar") {
+  from(rootProject.file("LICENSE")) {
+    into("META-INF")
+  }
+  from(rootProject.file("NOTICE")) {
+    into("META-INF")
+  }
+}
 
+tasks.withType<KotlinJvmCompile>().configureEach {
+  compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
+}
+
+tasks.withType<JavaCompile>().configureEach {
+  options.release.set(21)
+}

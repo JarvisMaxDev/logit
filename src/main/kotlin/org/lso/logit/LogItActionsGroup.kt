@@ -1,11 +1,14 @@
 package org.lso.logit
 
 import com.intellij.lang.Language
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.PlatformDataKeys
 
 class LogItActionsGroup : DefaultActionGroup() {
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+
     override fun update(e: AnActionEvent) {
         // display logit menu if the cursor is in a javascript code section
         e.presentation.isVisible = e.getData(PlatformDataKeys.EDITOR)?.let { editor ->

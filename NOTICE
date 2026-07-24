@@ -1,0 +1,14 @@
+LogIt
+
+This distribution is based on the LogIt plugin created by Laurent Soulet:
+https://github.com/lso133/logit
+
+This fork contains modifications for compatibility with current IntelliJ
+Platform versions:
+https://github.com/JarvisMaxDev/logit
+
+This fork is maintained independently and is not an official release of the
+original author.
+
+The original JetBrains Marketplace listing identifies Apache License 2.0:
+https://plugins.jetbrains.com/plugin/13432-logit

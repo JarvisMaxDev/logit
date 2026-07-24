@@ -52,9 +52,8 @@ class LogItRemove : AnAction("Remove LogIt's Logs") {
     when (dlg.scope) {
       Scope.CURRENT_FILE -> FindUtil.replace(project, editor, 0, findModel)
       Scope.PROJECT -> {
-        ReplaceInProjectManager(project).replaceInPath(findModel)
+        ReplaceInProjectManager.getInstance(project).replaceInPath(findModel)
       }
     }
   }
 }
-
